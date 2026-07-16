@@ -63,6 +63,12 @@ export default function SessionDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Tracks per-source "add to library" state so each button behaves
+  // independently (one source succeeding/failing doesn't affect others)
+  const [addedSourceIds, setAddedSourceIds] = useState<Set<string>>(new Set())
+  const [addingSourceId, setAddingSourceId] = useState<string | null>(null)
+  const [addError, setAddError] = useState<string | null>(null)
+
   useEffect(() => {
     const load = async () => {
       const {
@@ -98,6 +104,50 @@ export default function SessionDetailPage() {
 
     load()
   }, [params.id])
+
+  const handleAddToLibrary = async (source: Source) => {
+    setAddError(null)
+    setAddingSourceId(source.id)
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session) {
+      router.push('/login')
+      return
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/citations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          source_id: source.id,
+          title: source.title,
+          url: source.url || null,
+          author: null,
+          publish_date: null,
+          source_type: source.source_type,
+          tags: [],
+        }),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.detail || body?.error || 'Failed to add citation.')
+      }
+
+      setAddedSourceIds((prev) => new Set(prev).add(source.id))
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Something went wrong.')
+    } finally {
+      setAddingSourceId(null)
+    }
+  }
 
   if (loading) {
     return (
@@ -198,6 +248,12 @@ export default function SessionDetailPage() {
           </button>
         </div>
 
+        {addError && (
+          <p className="mb-2 text-sm text-red-500" role="alert">
+            {addError}
+          </p>
+        )}
+
         {activeSources.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No {activeTab === 'web' ? 'web' : 'document'} sources for this
@@ -205,29 +261,46 @@ export default function SessionDetailPage() {
           </p>
         ) : (
           <ul className="space-y-3">
-            {activeSources.map((s) => (
-              <li key={s.id} className="rounded-md border p-3 text-sm">
-                <div className="font-medium">{s.title}</div>
-                {s.url && (
-                  <a
-                    href={s.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs text-blue-600 underline"
-                  >
-                    {s.url}
-                  </a>
-                )}
-                {s.page_number != null && (
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    page {s.page_number}
-                  </span>
-                )}
-                <p className="mt-1 text-muted-foreground">
-                  {s.content_preview}
-                </p>
-              </li>
-            ))}
+            {activeSources.map((s) => {
+              const isAdded = addedSourceIds.has(s.id)
+              const isAdding = addingSourceId === s.id
+
+              return (
+                <li key={s.id} className="rounded-md border p-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="font-medium">{s.title}</div>
+                      {s.url && (
+                        <a
+                          href={s.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-blue-600 underline"
+                        >
+                          {s.url}
+                        </a>
+                      )}
+                      {s.page_number != null && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          page {s.page_number}
+                        </span>
+                      )}
+                      <p className="mt-1 text-muted-foreground">
+                        {s.content_preview}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => handleAddToLibrary(s)}
+                      disabled={isAdded || isAdding}
+                      className="shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium disabled:cursor-default disabled:opacity-60"
+                    >
+                      {isAdded ? 'Added ✓' : isAdding ? 'Adding...' : 'Add to library'}
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
