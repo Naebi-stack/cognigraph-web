@@ -95,6 +95,28 @@ export default function SessionDetailPage() {
         const hasWeb = body.sources.some((s) => s.source_type === 'web')
         const hasRag = body.sources.some((s) => s.source_type === 'rag')
         if (!hasWeb && hasRag) setActiveTab('rag')
+
+        // Check which sources are already in the library so "Add to library"
+        // buttons correctly show "Added ✓" after a refresh, not just within
+        // this page visit. Best-effort: if this fails, buttons just show as
+        // not-added, which is safe since the backend also prevents duplicates.
+        try {
+          const citationsRes = await fetch(`${API_URL}/citations`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          })
+          if (citationsRes.ok) {
+            const citationsBody: { citations: { source_id: string | null }[] } =
+              await citationsRes.json()
+            const existingSourceIds = new Set(
+              citationsBody.citations
+                .map((c) => c.source_id)
+                .filter((id): id is string => id !== null)
+            )
+            setAddedSourceIds(existingSourceIds)
+          }
+        } catch {
+          // Non-fatal — leave addedSourceIds empty, buttons show as not-added
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Something went wrong.')
       } finally {
