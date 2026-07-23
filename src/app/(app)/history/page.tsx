@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 interface SessionListItem {
@@ -34,7 +33,7 @@ function formatDate(iso: string): string {
   })
 }
 
-function truncate(text: string, max = 80): string {
+function truncate(text: string, max = 90): string {
   return text.length > max ? text.slice(0, max) + '…' : text
 }
 
@@ -66,7 +65,6 @@ export default function HistoryPage() {
         if (!res.ok) throw new Error('Failed to load research history')
 
         const data: { sessions: SessionListItem[] } = await res.json()
-        // Most recent first (API already returns this way per spec, sort defensively)
         const sorted = [...data.sessions].sort(
           (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         )
@@ -86,17 +84,12 @@ export default function HistoryPage() {
   )
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Research History</h1>
-        <div className="flex gap-4 text-sm">
-          <Link href="/dashboard" className="underline">
-            Dashboard
-          </Link>
-          <Link href="/research" className="underline">
-            New research
-          </Link>
-        </div>
+    <div className="mx-auto max-w-3xl px-8 py-10">
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-text">Research History</h1>
+        <p className="mt-1 text-sm text-text-muted">
+          Every question you've asked, with its full report and sources.
+        </p>
       </div>
 
       <input
@@ -104,21 +97,15 @@ export default function HistoryPage() {
         placeholder="Search by query..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="w-full max-w-sm rounded-md border px-3 py-2 text-sm"
+        className="mb-6 w-full max-w-sm rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
       />
 
-      {loading && (
-        <p className="text-sm text-muted-foreground">Loading history...</p>
-      )}
+      {loading && <p className="text-sm text-text-muted">Loading history...</p>}
 
-      {error && (
-        <p className="text-sm text-red-500" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <p className="text-sm text-error">{error}</p>}
 
       {!loading && !error && filtered.length === 0 && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-text-muted">
           {sessions.length === 0
             ? 'No research sessions yet.'
             : 'No sessions match your search.'}
@@ -126,40 +113,34 @@ export default function HistoryPage() {
       )}
 
       {!loading && filtered.length > 0 && (
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-muted/50 text-left">
-              <tr>
-                <th className="px-3 py-2 font-medium">Query</th>
-                <th className="px-3 py-2 font-medium">Date</th>
-                <th className="px-3 py-2 font-medium">Iterations</th>
-                <th className="px-3 py-2 font-medium">Total Sources</th>
-                <th className="px-3 py-2 font-medium">Duration</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((s) => (
-                <tr
-                  key={s.id}
-                  onClick={() => router.push(`/history/${s.id}`)}
-                  className="cursor-pointer border-b last:border-b-0 hover:bg-muted/30"
-                >
-                  <td className="px-3 py-2">{truncate(s.query)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {formatDate(s.created_at)}
-                  </td>
-                  <td className="px-3 py-2">{s.iterations}</td>
-                  <td className="px-3 py-2">
-                    {s.web_sources_count + s.rag_sources_count}
-                  </td>
-                  <td className="px-3 py-2">
-                    {formatDuration(s.duration_seconds)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className="space-y-3">
+          {filtered.map((s) => (
+            <li
+              key={s.id}
+              onClick={() => router.push(`/history/${s.id}`)}
+              className="cursor-pointer rounded-xl border border-border bg-surface p-4 transition hover:border-accent"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <p className="flex-1 text-sm text-text">{truncate(s.query)}</p>
+                <span className="shrink-0 text-xs text-text-muted">
+                  {formatDate(s.created_at)}
+                </span>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-full border border-border bg-bg px-2.5 py-0.5 text-xs text-text-muted">
+                  {s.iterations} iterations
+                </span>
+                <span className="rounded-full border border-border bg-bg px-2.5 py-0.5 text-xs text-text-muted">
+                  {s.web_sources_count + s.rag_sources_count} sources
+                </span>
+                <span className="rounded-full border border-border bg-bg px-2.5 py-0.5 text-xs text-text-muted">
+                  {formatDuration(s.duration_seconds)}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )

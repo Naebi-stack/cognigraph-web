@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
 
@@ -31,7 +30,9 @@ interface SessionListItem {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-const COLORS = ['#2563eb', '#16a34a'] // web = blue, rag = green
+
+// Web = violet (primary/user-directed), RAG = cyan (agent-sourced from personal docs)
+const PIE_COLORS = ['#8b5cf6', '#22d3ee']
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds)}s`
@@ -100,7 +101,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-10">
-        <p className="text-sm text-muted-foreground">Loading dashboard...</p>
+        <p className="text-sm text-[var(--color-text-muted)]">Loading dashboard...</p>
       </div>
     )
   }
@@ -108,7 +109,7 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-10">
-        <p className="text-sm text-red-500">{error}</p>
+        <p className="text-sm text-[var(--color-error)]">{error}</p>
       </div>
     )
   }
@@ -124,31 +125,21 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 space-y-10">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <div className="flex gap-4 text-sm">
-          <Link href="/research" className="underline">
-            New research
-          </Link>
-          <Link href="/history" className="underline">
-            History
-          </Link>
-        </div>
-      </div>
+      <h1 className="text-2xl font-semibold text-[var(--color-text)]">Dashboard</h1>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Total Research Sessions" value={summary.total_sessions} />
-        <StatCard label="Avg. Iterations" value={summary.avg_iterations.toFixed(1)} />
-        <StatCard label="Avg. Research Time" value={formatDuration(summary.avg_duration_seconds)} />
-        <StatCard label="Avg. Sources / Session" value={summary.avg_sources_per_session.toFixed(1)} />
+        <StatCard label="Total Research Sessions" value={summary.total_sessions} accent="accent" />
+        <StatCard label="Avg. Iterations" value={summary.avg_iterations.toFixed(1)} accent="signature" />
+        <StatCard label="Avg. Research Time" value={formatDuration(summary.avg_duration_seconds)} accent="signature" />
+        <StatCard label="Avg. Sources / Session" value={summary.avg_sources_per_session.toFixed(1)} accent="signature" />
       </div>
 
       {/* Chart 1: Source type breakdown */}
-      <div className="rounded-md border p-4">
-        <h2 className="mb-4 text-lg font-semibold">Source Type Breakdown</h2>
+      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+        <h2 className="mb-4 text-lg font-semibold text-[var(--color-text)]">Source Type Breakdown</h2>
         {summary.total_web_sources + summary.total_rag_sources === 0 ? (
-          <p className="text-sm text-muted-foreground">No sources yet.</p>
+          <p className="text-sm text-[var(--color-text-muted)]">No sources yet.</p>
         ) : (
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
@@ -162,29 +153,43 @@ export default function DashboardPage() {
                 label
               >
                 {pieData.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip />
-              <Legend />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'var(--color-surface-hover)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  color: 'var(--color-text)',
+                }}
+              />
+              <Legend wrapperStyle={{ color: 'var(--color-text-muted)', fontSize: 13 }} />
             </PieChart>
           </ResponsiveContainer>
         )}
       </div>
 
       {/* Chart 2: Recent activity */}
-      <div className="rounded-md border p-4">
-        <h2 className="mb-4 text-lg font-semibold">Recent Activity</h2>
+      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+        <h2 className="mb-4 text-lg font-semibold text-[var(--color-text)]">Recent Activity</h2>
         {activityData.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No sessions yet.</p>
+          <p className="text-sm text-[var(--color-text-muted)]">No sessions yet.</p>
         ) : (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={activityData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" fontSize={12} />
-              <YAxis allowDecimals={false} fontSize={12} />
-              <Tooltip />
-              <Bar dataKey="count" fill="#2563eb" name="Sessions" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+              <XAxis dataKey="date" fontSize={12} stroke="var(--color-text-muted)" />
+              <YAxis allowDecimals={false} fontSize={12} stroke="var(--color-text-muted)" />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'var(--color-surface-hover)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  color: 'var(--color-text)',
+                }}
+              />
+              <Bar dataKey="count" fill="#8b5cf6" name="Sessions" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -193,11 +198,23 @@ export default function DashboardPage() {
   )
 }
 
-function StatCard({ label, value }: { label: string; value: string | number }) {
+function StatCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string
+  value: string | number
+  accent: 'accent' | 'signature'
+}) {
+  const valueColor = accent === 'signature' ? 'var(--color-signature)' : 'var(--color-accent)'
+
   return (
-    <div className="rounded-md border p-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
+    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 transition-colors hover:bg-[var(--color-surface-hover)]">
+      <p className="text-xs text-[var(--color-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-semibold" style={{ color: valueColor }}>
+        {value}
+      </p>
     </div>
   )
 }
