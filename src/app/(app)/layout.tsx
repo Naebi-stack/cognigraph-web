@@ -82,7 +82,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-bg text-text">
+    <div className="flex h-screen overflow-hidden bg-bg text-text">
       <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-surface">
         <div className="px-5 py-6">
           <p className="text-lg font-semibold tracking-tight">
