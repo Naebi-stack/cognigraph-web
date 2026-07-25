@@ -237,6 +237,9 @@ export default function LandingPage() {
             Cogni<span className="text-accent">Graph</span>
           </p>
           <div className="flex items-center gap-4">
+            <Link href="/terms" className="transition hover:text-text">
+              Terms of Service
+            </Link>
             <Link href="/privacy" className="transition hover:text-text">
               Privacy Policy
             </Link>

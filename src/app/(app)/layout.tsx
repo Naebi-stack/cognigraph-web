@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: '▦' },
   { href: '/history', label: 'History', icon: '◷' },
   { href: '/library', label: 'Library', icon: '▤' },
+  { href: '/settings', label: 'Settings', icon: '⚙' },
 ]
 
 const STYLE_OPTIONS: { value: CitationStyle; label: string }[] = [
@@ -169,6 +170,12 @@ function AppShell({ children }: { children: React.ReactNode }) {
             className="mt-1 block rounded-lg px-3 py-2 text-left text-xs text-text-muted transition hover:text-text"
           >
             Privacy Policy
+          </Link>
+          <Link
+            href="/terms"
+            className="block rounded-lg px-3 py-2 text-left text-xs text-text-muted transition hover:text-text"
+          >
+            Terms of Service
           </Link>
         </div>
       </aside>

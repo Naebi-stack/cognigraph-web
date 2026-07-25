@@ -150,6 +150,18 @@ export default function SignupPage() {
           {googleLoading ? 'Redirecting...' : 'Continue with Google'}
         </button>
 
+        <p className="text-center text-xs text-text-muted">
+          By continuing, you agree to CogniGraph&apos;s{' '}
+          <Link href="/terms" className="text-accent underline">
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link href="/privacy" className="text-accent underline">
+            Privacy Policy
+          </Link>
+          .
+        </p>
+
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-border" />
           <span className="text-xs text-text-muted">or</span>

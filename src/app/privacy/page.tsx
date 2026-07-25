@@ -18,7 +18,7 @@ export default function PrivacyPolicyPage() {
 
       <main className="mx-auto max-w-3xl px-6 pb-24 pt-4">
         <h1 className="text-3xl font-semibold tracking-tight">Privacy Policy</h1>
-        <p className="mt-2 text-sm text-text-muted">Last updated: [July 2026]</p>
+        <p className="mt-2 text-sm text-text-muted">Last updated: July 2026</p>
 
         <div className="mt-6 rounded-lg border border-border border-l-2 border-l-signature bg-surface p-4 text-sm text-text-muted">
           This is a starting draft, not legal advice — it reflects what
@@ -149,7 +149,7 @@ export default function PrivacyPolicyPage() {
               account. You can delete individual citations and sessions from
               within the app. To request full account and data deletion,
               contact us at{' '}
-              <span className="text-text">[willford.fx@gmail.com]</span>.
+              <span className="text-text">willford.fx@gmail.com</span>.
             </p>
           </section>
 
@@ -168,7 +168,7 @@ export default function PrivacyPolicyPage() {
             <p className="mt-3">
               Depending on where you live, you may have the right to access,
               correct, export, or delete your personal information. Contact
-              us at <span className="text-text">[willford.fx@gmail.com]</span> to
+              us at <span className="text-text">willford.fx@gmail.com</span> to
               exercise these rights.
             </p>
           </section>
@@ -197,7 +197,7 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-lg font-semibold text-text">10. Contact</h2>
             <p className="mt-3">
               Questions about this policy? Reach us at{' '}
-              <span className="text-text">[willford.fx@gmail.com]</span>.
+              <span className="text-text">willford.fx@gmail.com</span>.
             </p>
           </section>
         </div>
