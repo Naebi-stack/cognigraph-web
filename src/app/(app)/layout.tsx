@@ -164,6 +164,12 @@ function AppShell({ children }: { children: React.ReactNode }) {
           >
             Sign out
           </button>
+          <Link
+            href="/privacy"
+            className="mt-1 block rounded-lg px-3 py-2 text-left text-xs text-text-muted transition hover:text-text"
+          >
+            Privacy Policy
+          </Link>
         </div>
       </aside>
 

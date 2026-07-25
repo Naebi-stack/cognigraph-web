@@ -37,6 +37,9 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  // Distinct from `error` on purpose — a successful signup pending email
+  // confirmation is not a failure and shouldn't be styled like one.
+  const [verificationSent, setVerificationSent] = useState(false)
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,13 +59,13 @@ export default function SignupPage() {
     }
 
     // Email confirmation config affects this: if ON, data.session will be
-    // null here and the message below tells the user to check their email.
-    // If OFF, signUp returns an active session immediately.
+    // null here and we show the "check your email" screen below. If OFF,
+    // signUp returns an active session immediately and we go straight in.
     if (data.session) {
       router.push('/research')
       router.refresh()
     } else {
-      setError('Check your email to confirm your account.')
+      setVerificationSent(true)
     }
   }
 
@@ -82,6 +85,42 @@ export default function SignupPage() {
       setGoogleLoading(false)
     }
     // On success the browser redirects to Google, so no further action here.
+  }
+
+  if (verificationSent) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg px-4">
+        <div className="w-full max-w-sm space-y-5 text-center">
+          <p className="text-sm font-semibold tracking-tight text-text">
+            Cogni<span className="text-accent">Graph</span>
+          </p>
+          <div className="rounded-xl border border-border border-l-2 border-l-signature bg-surface p-6">
+            <p className="text-2xl" aria-hidden="true">
+              ✉️
+            </p>
+            <h1 className="mt-3 text-lg font-semibold text-text">
+              Check your email
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-text-muted">
+              We sent a confirmation link to{' '}
+              <span className="text-text">{email}</span>. Click it to
+              activate your account, then come back and log in.
+            </p>
+          </div>
+          <p className="text-sm text-text-muted">
+            Didn&apos;t get it? Check spam, or{' '}
+            <button
+              type="button"
+              onClick={() => setVerificationSent(false)}
+              className="text-accent underline"
+            >
+              try a different email
+            </button>
+            .
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (

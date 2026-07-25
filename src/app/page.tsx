@@ -236,7 +236,12 @@ export default function LandingPage() {
           <p>
             Cogni<span className="text-accent">Graph</span>
           </p>
-          <p>&copy; {new Date().getFullYear()} CogniGraph</p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="transition hover:text-text">
+              Privacy Policy
+            </Link>
+            <p>&copy; {new Date().getFullYear()} CogniGraph</p>
+          </div>
         </div>
       </footer>
     </div>
