@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
+// Pinned so the OAuth redirect always lands on the same host that set the
+// PKCE verifier cookie — see login/page.tsx for the full explanation.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001'
+
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
@@ -76,7 +80,7 @@ export default function SignupPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${SITE_URL}/auth/callback`,
       },
     })
 

@@ -1,9 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+
+// Pinned so the OAuth redirect always lands on the same host that set the
+// PKCE verifier cookie. window.location.origin is unsafe here since
+// cognigraph.com (apex) 301-redirects to www.cognigraph.com before the
+// callback route can run, silently breaking the code exchange.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001'
 
 function GoogleIcon() {
   return (
@@ -30,6 +36,7 @@ function GoogleIcon() {
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   const [email, setEmail] = useState('')
@@ -37,6 +44,14 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+
+  // Surface a failed OAuth callback instead of silently landing here with
+  // no explanation — see /auth/callback/route.ts
+  useEffect(() => {
+    if (searchParams.get('error') === 'auth_callback_failed') {
+      setError('Google sign-in didn\'t complete. Please try again.')
+    }
+  }, [searchParams])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -66,7 +81,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${SITE_URL}/auth/callback`,
       },
     })
 
