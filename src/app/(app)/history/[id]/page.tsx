@@ -1,8 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import { MoreVertical, Trash2, Download } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   BarChart,
   Bar,
@@ -76,6 +79,57 @@ function formatDate(iso: string): string {
   })
 }
 
+// Shared styling for rendered report/plan/critique content — keeps
+// Markdown output (now that the Synthesizer writes structured reports)
+// consistent with the rest of the design system instead of relying on a
+// typography plugin that may not be installed.
+const markdownComponents = {
+  h1: (props: React.ComponentPropsWithoutRef<'h1'>) => (
+    <h1 className="mb-3 text-xl font-semibold text-[var(--color-text)]" {...props} />
+  ),
+  h2: (props: React.ComponentPropsWithoutRef<'h2'>) => (
+    <h2
+      className="mb-2 mt-6 border-b border-[var(--color-border)] pb-1 text-base font-semibold text-[var(--color-text)] first:mt-0"
+      {...props}
+    />
+  ),
+  h3: (props: React.ComponentPropsWithoutRef<'h3'>) => (
+    <h3
+      className="mb-1 mt-4 text-sm font-semibold uppercase tracking-wide text-[var(--color-signature)]"
+      {...props}
+    />
+  ),
+  p: (props: React.ComponentPropsWithoutRef<'p'>) => (
+    <p className="mb-3 leading-relaxed text-[var(--color-text)] last:mb-0" {...props} />
+  ),
+  ul: (props: React.ComponentPropsWithoutRef<'ul'>) => (
+    <ul className="mb-3 list-disc space-y-1 pl-5 text-[var(--color-text)]" {...props} />
+  ),
+  ol: (props: React.ComponentPropsWithoutRef<'ol'>) => (
+    <ol className="mb-3 list-decimal space-y-1 pl-5 text-[var(--color-text)]" {...props} />
+  ),
+  li: (props: React.ComponentPropsWithoutRef<'li'>) => (
+    <li className="leading-relaxed" {...props} />
+  ),
+  strong: (props: React.ComponentPropsWithoutRef<'strong'>) => (
+    <strong className="font-semibold text-[var(--color-text)]" {...props} />
+  ),
+  table: (props: React.ComponentPropsWithoutRef<'table'>) => (
+    <div className="mb-3 overflow-x-auto">
+      <table className="w-full border-collapse text-sm" {...props} />
+    </div>
+  ),
+  th: (props: React.ComponentPropsWithoutRef<'th'>) => (
+    <th
+      className="border border-[var(--color-border)] bg-[var(--color-surface-hover)] px-2 py-1 text-left text-[var(--color-text)]"
+      {...props}
+    />
+  ),
+  td: (props: React.ComponentPropsWithoutRef<'td'>) => (
+    <td className="border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-muted)]" {...props} />
+  ),
+}
+
 // Small pill for the stat row under the query title
 function StatPill({ children }: { children: React.ReactNode }) {
   return (
@@ -106,6 +160,26 @@ export default function SessionDetailPage() {
   const [chartData, setChartData] = useState<ChartInsight[] | null>(null)
   const [generatingInsights, setGeneratingInsights] = useState(false)
   const [insightsError, setInsightsError] = useState<string | null>(null)
+
+  // Session actions: kebab menu + custom delete confirmation (not the
+  // browser's native confirm()) — deliberately placed up here near the
+  // date, not buried in a hover-only control, so it can't be triggered
+  // by an accidental hover/click.
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -227,6 +301,72 @@ export default function SessionDetailPage() {
     }
   }
 
+  const handleDownload = async (format: 'pdf' | 'docx') => {
+    setMenuOpen(false)
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session) return
+
+    try {
+      const res = await fetch(
+        `${API_URL}/sessions/${params.id}/export?format=${format}`,
+        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      )
+      if (!res.ok) return
+
+      // Prefer the filename the backend generated from the query, falling
+      // back to a generic name if the header is missing for any reason.
+      const disposition = res.headers.get('Content-Disposition')
+      const match = disposition?.match(/filename="(.+)"/)
+      const filename = match?.[1] || `report.${format}`
+
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      // Non-fatal — user can just retry from the menu
+    }
+  }
+
+  const handleDeleteSession = async () => {
+    setDeleteError(null)
+    setDeleting(true)
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session) {
+      router.push('/login')
+      return
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/sessions/${params.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.detail || 'Failed to delete session.')
+      }
+
+      router.push('/history')
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Something went wrong.')
+      setDeleting(false)
+    }
+  }
+
   const handleGenerateInsights = async () => {
     setInsightsError(null)
     setGeneratingInsights(true)
@@ -297,10 +437,94 @@ export default function SessionDetailPage() {
         <Link href="/history" className="text-sm text-[var(--color-accent)] underline">
           ← Back to history
         </Link>
-        <span className="text-xs text-[var(--color-text-muted)]">
-          {formatDate(session.created_at)}
-        </span>
+
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-[var(--color-text-muted)]">
+            {formatDate(session.created_at)}
+          </span>
+
+          <div ref={menuRef} className="relative">
+            <button
+              onClick={() => setMenuOpen((prev) => !prev)}
+              aria-label="Session actions"
+              className="rounded-md p-1 text-[var(--color-text-muted)] transition hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 top-full z-10 mt-1 w-44 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-lg">
+                <button
+                  onClick={() => handleDownload('pdf')}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-[var(--color-text-muted)] transition hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                >
+                  <Download className="h-4 w-4" />
+                  Download PDF
+                </button>
+                <button
+                  onClick={() => handleDownload('docx')}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-[var(--color-text-muted)] transition hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                >
+                  <Download className="h-4 w-4" />
+                  Download DOCX
+                </button>
+                <div className="my-1 border-t border-[var(--color-border)]" />
+                <button
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setShowDeleteConfirm(true)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-[var(--color-error)] transition hover:bg-[var(--color-surface-hover)]"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete session
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Custom delete-confirmation modal — deliberately not the browser's
+          native confirm(), so it matches the app's design and can't be
+          dismissed/confused with a generic browser dialog. */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+            <h2 className="text-base font-semibold text-[var(--color-text)]">
+              Delete this session?
+            </h2>
+            <p className="mt-2 text-sm text-[var(--color-text-muted)]">
+              This permanently deletes the report, sources, and any chart
+              insights for this session. Citations you&apos;ve already saved
+              to your library are not affected. This can&apos;t be undone.
+            </p>
+
+            {deleteError && (
+              <p className="mt-3 text-sm text-[var(--color-error)]" role="alert">
+                {deleteError}
+              </p>
+            )}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteSession}
+                disabled={deleting}
+                className="rounded-lg bg-[var(--color-error)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Delete session'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div>
         <h1 className="text-xl font-semibold text-[var(--color-text)]">{session.query}</h1>
@@ -355,16 +579,20 @@ export default function SessionDetailPage() {
 
       <section>
         <h2 className="mb-2 text-lg font-semibold text-[var(--color-text)]">Report</h2>
-        <div className="whitespace-pre-wrap rounded-lg border border-[var(--color-border)] border-l-2 border-l-[var(--color-signature)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-text)]">
-          {session.final_report}
+        <div className="rounded-lg border border-[var(--color-border)] border-l-2 border-l-[var(--color-signature)] bg-[var(--color-surface)] p-4 text-sm">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {session.final_report}
+          </ReactMarkdown>
         </div>
       </section>
 
       {session.research_plan && (
         <section>
           <h2 className="mb-2 text-lg font-semibold text-[var(--color-text)]">Research Plan</h2>
-          <div className="whitespace-pre-wrap rounded-lg border border-[var(--color-border)] border-l-2 border-l-[var(--color-signature)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-text-muted)]">
-            {session.research_plan}
+          <div className="rounded-lg border border-[var(--color-border)] border-l-2 border-l-[var(--color-signature)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-text-muted)]">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {session.research_plan}
+            </ReactMarkdown>
           </div>
         </section>
       )}
@@ -372,8 +600,10 @@ export default function SessionDetailPage() {
       {session.final_critique && (
         <section>
           <h2 className="mb-2 text-lg font-semibold text-[var(--color-text)]">Final Critique</h2>
-          <div className="whitespace-pre-wrap rounded-lg border border-[var(--color-border)] border-l-2 border-l-[var(--color-signature)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-text-muted)]">
-            {session.final_critique}
+          <div className="rounded-lg border border-[var(--color-border)] border-l-2 border-l-[var(--color-signature)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-text-muted)]">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {session.final_critique}
+            </ReactMarkdown>
           </div>
         </section>
       )}
