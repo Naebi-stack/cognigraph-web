@@ -96,9 +96,13 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm space-y-6">
         <div>
-          <p className="text-sm font-semibold tracking-tight text-text">
-            Cogni<span className="text-accent">Graph</span>
-          </p>
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-mark.svg" alt="" className="h-5 w-5" />
+            <p className="text-sm font-semibold tracking-tight text-text">
+              Cogni<span className="text-accent">Graph</span>
+            </p>
+          </div>
           <h1 className="mt-4 text-2xl font-semibold text-text">Log in</h1>
           <p className="text-sm text-text-muted">Welcome back to CogniGraph</p>
         </div>

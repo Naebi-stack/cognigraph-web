@@ -45,9 +45,13 @@ export default function LandingPage() {
     <div className="min-h-screen bg-bg text-text">
       {/* Nav */}
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <p className="text-lg font-semibold tracking-tight">
-          Cogni<span className="text-accent">Graph</span>
-        </p>
+        <div className="flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.svg" alt="" className="h-7 w-7" />
+          <p className="text-lg font-semibold tracking-tight">
+            Cogni<span className="text-accent">Graph</span>
+          </p>
+        </div>
         <div className="flex items-center gap-4">
           <Link
             href="/login"
@@ -233,9 +237,13 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6 text-xs text-text-muted">
-          <p>
-            Cogni<span className="text-accent">Graph</span>
-          </p>
+          <div className="flex items-center gap-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-mark.svg" alt="" className="h-4 w-4" />
+            <p>
+              Cogni<span className="text-accent">Graph</span>
+            </p>
+          </div>
           <div className="flex items-center gap-4">
             <Link href="/terms" className="transition hover:text-text">
               Terms of Service

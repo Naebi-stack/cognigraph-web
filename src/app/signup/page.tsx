@@ -95,9 +95,13 @@ export default function SignupPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bg px-4">
         <div className="w-full max-w-sm space-y-5 text-center">
-          <p className="text-sm font-semibold tracking-tight text-text">
-            Cogni<span className="text-accent">Graph</span>
-          </p>
+          <div className="flex items-center justify-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-mark.svg" alt="" className="h-5 w-5" />
+            <p className="text-sm font-semibold tracking-tight text-text">
+              Cogni<span className="text-accent">Graph</span>
+            </p>
+          </div>
           <div className="rounded-xl border border-border border-l-2 border-l-signature bg-surface p-6">
             <p className="text-2xl" aria-hidden="true">
               ✉️
@@ -131,9 +135,13 @@ export default function SignupPage() {
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm space-y-6">
         <div>
-          <p className="text-sm font-semibold tracking-tight text-text">
-            Cogni<span className="text-accent">Graph</span>
-          </p>
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-mark.svg" alt="" className="h-5 w-5" />
+            <p className="text-sm font-semibold tracking-tight text-text">
+              Cogni<span className="text-accent">Graph</span>
+            </p>
+          </div>
           <h1 className="mt-4 text-2xl font-semibold text-text">Sign up</h1>
           <p className="text-sm text-text-muted">
             Create your CogniGraph account
