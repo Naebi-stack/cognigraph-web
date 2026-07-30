@@ -36,6 +36,8 @@ export default function SignupPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -48,11 +50,32 @@ export default function SignupPage() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    const trimmedFirst = firstName.trim()
+    const trimmedLast = lastName.trim()
+
+    if (!trimmedFirst || !trimmedLast) {
+      setError('Please enter your first and last name.')
+      return
+    }
+
     setLoading(true)
 
+    // Stored in user_metadata under the same keys Google OAuth already
+    // populates (full_name, avatar_url) — see layout.tsx's getInitials()/
+    // displayName logic, which reads user_metadata.full_name regardless
+    // of signup method. first_name/last_name are kept alongside in case
+    // they're needed separately later (e.g. formal report headers).
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          first_name: trimmedFirst,
+          last_name: trimmedLast,
+          full_name: `${trimmedFirst} ${trimmedLast}`,
+        },
+      },
     })
 
     setLoading(false)
@@ -177,6 +200,38 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSignup} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label htmlFor="first-name" className="text-sm font-medium text-text">
+                First name
+              </label>
+              <input
+                id="first-name"
+                type="text"
+                required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+                placeholder="Ada"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="last-name" className="text-sm font-medium text-text">
+                Last name
+              </label>
+              <input
+                id="last-name"
+                type="text"
+                required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+                placeholder="Lovelace"
+              />
+            </div>
+          </div>
+
           <div className="space-y-1">
             <label htmlFor="email" className="text-sm font-medium text-text">
               Email

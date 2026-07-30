@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { BarChart3, Download } from 'lucide-react'
+import { ArrowUp, BarChart3, Download, FileText, Mic, MicOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Source {
@@ -84,6 +84,10 @@ export default function ResearchPage() {
   const supabase = createClient()
 
   const [query, setQuery] = useState('')
+  // Iterations moved to Settings (see /settings) — this page just reads
+  // whatever was last saved there, defaulting to 3 if nothing's been set
+  // yet. Kept in localStorage rather than a new API round-trip since it's
+  // a lightweight per-browser preference, not account data.
   const [maxIterations, setMaxIterations] = useState(3)
   const [useRag, setUseRag] = useState(true)
 
@@ -97,6 +101,61 @@ export default function ResearchPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
 
+  // Voice input — Web Speech API. Chrome/Edge/Safari support
+  // webkitSpeechRecognition; Firefox does not, so the mic button only
+  // renders when the browser actually supports it (checked on mount).
+  const [speechSupported, setSpeechSupported] = useState(false)
+  const [listening, setListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const stored = localStorage.getItem('cognigraph:max-iterations')
+    if (stored) setMaxIterations(Number(stored))
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (SpeechRecognition) {
+      setSpeechSupported(true)
+      const recognition = new SpeechRecognition()
+      recognition.continuous = true
+      recognition.interimResults = false
+      recognition.lang = 'en-US'
+
+      recognition.onresult = (event: any) => {
+        let transcript = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript
+        }
+        setQuery((prev) => (prev ? `${prev} ${transcript}` : transcript))
+      }
+      recognition.onerror = () => setListening(false)
+      recognition.onend = () => setListening(false)
+
+      recognitionRef.current = recognition
+    }
+  }, [])
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) return
+    if (listening) {
+      recognitionRef.current.stop()
+      setListening(false)
+    } else {
+      recognitionRef.current.start()
+      setListening(true)
+    }
+  }
+
+  // Auto-resize the composer textarea as the user types, capped so it
+  // doesn't take over the screen on very long queries.
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`
+  }, [query])
+
   // Sidebar's "New Research" button dispatches this so the form resets
   // even if the user is already on this page mid-session.
   useEffect(() => {
@@ -104,16 +163,25 @@ export default function ResearchPage() {
       setQuery('')
       setResult(null)
       setError(null)
+      if (listening) {
+        recognitionRef.current?.stop()
+        setListening(false)
+      }
     }
     window.addEventListener('cognigraph:new-research', handleNewResearch)
     return () =>
       window.removeEventListener('cognigraph:new-research', handleNewResearch)
-  }, [])
+  }, [listening])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setResult(null)
+
+    if (listening) {
+      recognitionRef.current?.stop()
+      setListening(false)
+    }
 
     if (query.trim().length < 5) {
       setError('Query must be at least 5 characters.')
@@ -248,7 +316,7 @@ export default function ResearchPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-10">
+    <div className="mx-auto max-w-4xl px-8 py-10">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-text">Research</h1>
         <p className="mt-1 text-sm text-text-muted">
@@ -296,53 +364,82 @@ export default function ResearchPage() {
         )}
       </div>
 
-      {/* Query card */}
-      <div className="rounded-xl border border-border bg-surface p-5">
-        <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Query composer */}
+      <form onSubmit={handleSubmit}>
+        <div className="group relative rounded-2xl border border-border bg-surface shadow-lg shadow-black/10 transition focus-within:border-accent focus-within:shadow-accent/10">
           <textarea
+            ref={textareaRef}
             required
-            rows={3}
+            rows={1}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Ask a research question..."
-            className="w-full resize-none rounded-lg border border-border bg-bg px-4 py-3 text-text placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            className="max-h-60 w-full resize-none rounded-t-2xl bg-transparent px-5 pb-2 pt-5 text-[15px] text-text placeholder:text-text-muted focus:outline-none"
           />
 
-          <div className="flex flex-wrap items-center gap-6">
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-text-muted">Iterations</label>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={maxIterations}
-                onChange={(e) => setMaxIterations(Number(e.target.value))}
-                className="w-16 rounded-lg border border-border bg-bg px-2 py-1 text-sm text-text focus:border-accent focus:outline-none"
-              />
+          <div className="flex items-center justify-between gap-2 px-3 pb-3 pt-1">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setUseRag((v) => !v)}
+                title="Use my documents"
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                  useRag
+                    ? 'border-accent/40 bg-accent/15 text-accent'
+                    : 'border-border text-text-muted hover:border-accent/40 hover:text-text'
+                }`}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Documents
+              </button>
+
+              {speechSupported && (
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  title={listening ? 'Stop dictation' : 'Dictate your question'}
+                  className={`flex h-8 w-8 items-center justify-center rounded-full border transition ${
+                    listening
+                      ? 'animate-pulse border-error/40 bg-error/15 text-error'
+                      : 'border-border text-text-muted hover:border-accent/40 hover:text-text'
+                  }`}
+                >
+                  {listening ? (
+                    <MicOff className="h-3.5 w-3.5" />
+                  ) : (
+                    <Mic className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              )}
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-text-muted">
-              <input
-                type="checkbox"
-                checked={useRag}
-                onChange={(e) => setUseRag(e.target.checked)}
-                className="accent-accent"
-              />
-              Use my documents
-            </label>
+            <button
+              type="submit"
+              disabled={loading || query.trim().length < 5}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-white transition hover:bg-accent-hover disabled:opacity-30"
+            >
+              {loading ? (
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              ) : (
+                <ArrowUp className="h-4 w-4" />
+              )}
+            </button>
           </div>
+        </div>
 
-          {error && <p className="text-sm text-error">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-40"
-          >
-            {loading ? 'Researching…' : 'Run research'}
-          </button>
-        </form>
-      </div>
+        <div className="mt-2 flex items-center justify-between px-1">
+          {error ? (
+            <p className="text-sm text-error">{error}</p>
+          ) : (
+            <p className="text-xs text-text-muted">
+              {maxIterations} iteration{maxIterations !== 1 ? 's' : ''} ·{' '}
+              <Link href="/settings" className="underline hover:text-text">
+                adjust in Settings
+              </Link>
+            </p>
+          )}
+        </div>
+      </form>
 
       {loading && (
         <div className="mt-6 flex items-center gap-3 rounded-xl border border-signature/30 bg-signature/5 px-4 py-3">
