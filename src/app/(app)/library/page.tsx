@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useLibraryStyle } from '@/context/library-style'
+import { useDemoMode } from '@/context/demo-mode-context'
+import { demoCitations, formatDemoCitation } from '@/lib/demo-data'
 
 type ExportFormat = 'text' | 'bibtex' | 'pdf' | 'docx'
 
@@ -39,6 +41,7 @@ export default function LibraryPage() {
   const supabase = createClient()
   // Style now lives in the sidebar (shared context), not a page-level control
   const { style } = useLibraryStyle()
+  const { isDemoMode, hydrated: demoHydrated } = useDemoMode()
 
   const [citations, setCitations] = useState<Citation[]>([])
   const [formatted, setFormatted] = useState<Record<string, string>>({})
@@ -62,6 +65,10 @@ export default function LibraryPage() {
   }
 
   useEffect(() => {
+    if (!demoHydrated) return
+    // Demo citations are derived below, not pushed into state.
+    if (isDemoMode) return
+
     const load = async () => {
       const token = await getToken()
       if (!token) return
@@ -82,9 +89,13 @@ export default function LibraryPage() {
     }
 
     load()
-  }, [])
+  }, [isDemoMode, demoHydrated])
 
   const loadFormatted = useCallback(async () => {
+    // Demo ids don't exist server-side, so formatting is derived locally
+    // below instead of fetched.
+    if (isDemoMode) return
+
     if (citations.length === 0) {
       setFormatted({})
       return
@@ -110,14 +121,28 @@ export default function LibraryPage() {
     } finally {
       setFormatting(false)
     }
-  }, [citations, style])
+  }, [citations, style, isDemoMode])
 
   useEffect(() => {
     loadFormatted()
   }, [loadFormatted])
 
+  // Demo mode swaps the data source without touching the user's real
+  // citations, so exiting demo mode restores them instantly.
+  const effectiveCitations = isDemoMode ? demoCitations : citations
+  const effectiveFormatted = useMemo(
+    () =>
+      isDemoMode
+        ? Object.fromEntries(
+            demoCitations.map((c) => [c.id, formatDemoCitation(c, style)])
+          )
+        : formatted,
+    [isDemoMode, style, formatted]
+  )
+  const showLoading = isDemoMode ? false : loading
+
   const handleCopy = async (id: string) => {
-    const text = formatted[id]
+    const text = effectiveFormatted[id]
     if (!text) return
     await navigator.clipboard.writeText(text)
     setCopiedId(id)
@@ -125,6 +150,12 @@ export default function LibraryPage() {
   }
 
   const handleDelete = async (id: string) => {
+    // Demo citations only exist in memory — drop it locally, don't call the API.
+    if (isDemoMode) {
+      setCitations((prev) => prev.filter((c) => c.id !== id))
+      return
+    }
+
     const token = await getToken()
     if (!token) return
 
@@ -144,6 +175,13 @@ export default function LibraryPage() {
   }
 
   const handleExport = async (format: ExportFormat) => {
+    if (isDemoMode) {
+      setError(
+        'Export is disabled in the demo workspace. Exit demo mode to export your own library.'
+      )
+      return
+    }
+
     const token = await getToken()
     if (!token) return
 
@@ -176,7 +214,7 @@ export default function LibraryPage() {
     }
   }
 
-  const filtered = citations.filter(
+  const filtered = effectiveCitations.filter(
     (c) =>
       c.title.toLowerCase().includes(search.toLowerCase()) ||
       c.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()))
@@ -184,7 +222,7 @@ export default function LibraryPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-10">
-      <div className="mb-8 flex items-start justify-between">
+      <div id="tour-library-header" className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-text">Reference Library</h1>
           <p className="mt-1 text-sm text-text-muted">
@@ -198,6 +236,7 @@ export default function LibraryPage() {
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <input
+          id="tour-library-search"
           type="text"
           placeholder="Search by title or tag..."
           value={search}
@@ -205,12 +244,12 @@ export default function LibraryPage() {
           className="w-full max-w-xs rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
         />
 
-        <div className="ml-auto flex flex-wrap gap-2">
+        <div id="tour-library-export" className="ml-auto flex flex-wrap gap-2">
           {EXPORT_FORMATS.map((fmt) => (
             <button
               key={fmt.value}
               onClick={() => handleExport(fmt.value)}
-              disabled={exporting || citations.length === 0}
+              disabled={exporting || effectiveCitations.length === 0}
               className="rounded-lg border border-border bg-surface px-3 py-2 text-xs font-medium text-text hover:border-accent hover:text-accent disabled:cursor-default disabled:opacity-40"
             >
               {fmt.label}
@@ -221,17 +260,17 @@ export default function LibraryPage() {
 
       {error && <p className="mb-4 text-sm text-error">{error}</p>}
 
-      {loading && <p className="text-sm text-text-muted">Loading library...</p>}
+      {showLoading && <p className="text-sm text-text-muted">Loading library...</p>}
 
-      {!loading && filtered.length === 0 && (
+      {!showLoading && filtered.length === 0 && (
         <p className="text-sm text-text-muted">
-          {citations.length === 0
+          {effectiveCitations.length === 0
             ? "Your library is empty. Add sources from a research session's detail page."
             : 'No citations match your search.'}
         </p>
       )}
 
-      {!loading && filtered.length > 0 && (
+      {!showLoading && filtered.length > 0 && (
         <ul className="space-y-3">
           {filtered.map((c) => (
             <li
@@ -241,7 +280,7 @@ export default function LibraryPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <p className="text-sm text-text">
-                    {formatting ? 'Formatting...' : formatted[c.id] || c.title}
+                    {formatting ? 'Formatting...' : effectiveFormatted[c.id] || c.title}
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-text-muted">
                     <span className="rounded-full bg-bg px-2 py-0.5 uppercase">
@@ -262,7 +301,7 @@ export default function LibraryPage() {
                 <div className="flex shrink-0 gap-2">
                   <button
                     onClick={() => handleCopy(c.id)}
-                    disabled={!formatted[c.id]}
+                    disabled={!effectiveFormatted[c.id]}
                     className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text hover:border-accent hover:text-accent disabled:opacity-40"
                   >
                     {copiedId === c.id ? 'Copied ✓' : 'Copy'}

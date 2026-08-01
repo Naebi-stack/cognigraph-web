@@ -22,6 +22,22 @@ import {
   useLibraryStyle,
   CitationStyle,
 } from '@/context/library-style'
+import { TourProvider } from '@/context/tour-context'
+import { DemoModeProvider } from '@/context/demo-mode-context'
+import Welcome from '@/components/tour/welcome'
+import HelpCenter from '@/components/help/help-center'
+import DemoBanner from '@/components/help/demo-banner'
+// Tour must never be server-rendered — react-joyride branches on
+// `typeof window !== 'undefined'` internally, so a normal import would
+// render `null` on the server but a real <div> on the client's first
+// paint, causing a hydration mismatch that shifts every sibling after it
+// (this is what broke <aside> below). ssr: false skips it during SSR
+// entirely; it mounts client-side only, after hydration.
+import dynamic from 'next/dynamic'
+const Tour = dynamic(
+  () => import('@/components/tour/tour').then((mod) => mod.Tour),
+  { ssr: false }
+)
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const RECENT_SESSIONS_LIMIT = 8
@@ -160,6 +176,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg text-text">
+      <Tour />
       <aside
         className={`flex shrink-0 flex-col border-r border-border bg-surface transition-[width] duration-300 ease-in-out ${
           collapsed ? 'w-16' : 'w-64'
@@ -215,6 +232,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
             on that route and clicks this again mid-session. */}
         <div className="px-2 pb-2">
           <button
+            id="tour-new-research"
             onClick={() => {
               window.dispatchEvent(new Event('cognigraph:new-research'))
               router.push('/research')
@@ -237,6 +255,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
             return (
               <div key={item.href}>
                 <Link
+                  // Tour target — see src/components/tour/tours.ts. Derived
+                  // from href so adding a nav item keeps its tour anchor.
+                  id={`tour-nav-${item.href.slice(1)}`}
                   href={item.href}
                   title={collapsed ? item.label : undefined}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
@@ -277,7 +298,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
                 {/* Citation style sub-menu — only shown under Library,
                     only while a Library page is active, and only expanded */}
                 {!collapsed && item.href === '/library' && isLibrary && (
-                  <div className="ml-8 mt-1 space-y-0.5 border-l border-border pl-3">
+                  <div
+                    id="tour-citation-style"
+                    className="ml-8 mt-1 space-y-0.5 border-l border-border pl-3"
+                  >
                     {STYLE_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
@@ -367,7 +391,15 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <DemoBanner />
+        <main className="flex-1 overflow-y-auto">{children}</main>
+      </div>
+
+      {/* Onboarding surfaces live at the shell level so they're reachable from
+          every page, not just the dashboard. */}
+      <Welcome />
+      <HelpCenter />
     </div>
   )
 }
@@ -375,7 +407,11 @@ function AppShell({ children }: { children: React.ReactNode }) {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <LibraryStyleProvider>
-      <AppShell>{children}</AppShell>
+      <DemoModeProvider>
+        <TourProvider>
+          <AppShell>{children}</AppShell>
+        </TourProvider>
+      </DemoModeProvider>
     </LibraryStyleProvider>
   )
 }

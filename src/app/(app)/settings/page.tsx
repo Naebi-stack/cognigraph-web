@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useLibraryStyle, CitationStyle } from '@/context/library-style'
 
+import { useTour } from '@/context/tour-context'
+import { useDemoMode } from '@/context/demo-mode-context'
+import { TOURS, type TourKey } from '@/components/tour/tours'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 const STYLE_OPTIONS: { value: CitationStyle; label: string; description: string }[] = [
@@ -17,6 +21,9 @@ export default function SettingsPage() {
   const router = useRouter()
   const supabase = createClient()
   const { style, setStyle } = useLibraryStyle()
+  const { startTour, completed, resetOnboarding, hydrated: tourHydrated } = useTour()
+  const { isDemoMode, enableDemoMode, disableDemoMode } = useDemoMode()
+  const [onboardingReset, setOnboardingReset] = useState(false)
 
   const [email, setEmail] = useState<string | null>(null)
 
@@ -404,6 +411,90 @@ export default function SettingsPage() {
             </p>
           </div>
         </div>
+      </section>
+
+      {/* Onboarding — the `id` is the anchor the Help Center links to */}
+      <section id="onboarding" className="space-y-4">
+        <h2 className="text-lg font-semibold text-text">Onboarding</h2>
+        <p className="text-sm text-text-muted">
+          Tours are never one-time-only. Replay any of them, or reset progress
+          to see the welcome screen again.
+        </p>
+
+        <div className="space-y-2 rounded-lg border border-border bg-surface p-4">
+          {(Object.keys(TOURS) as TourKey[]).map((key) => {
+            const tour = TOURS[key]
+            const isDone = tourHydrated && completed.includes(key)
+            // A page tour can only run where its targets exist.
+            const needsRoute = key !== 'main'
+            return (
+              <div
+                key={key}
+                className="flex items-center justify-between gap-3 border-b border-border py-2 last:border-0 last:pb-0 first:pt-0"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm text-text">{tour.label}</p>
+                  <p className="mt-0.5 text-xs text-text-muted">
+                    {tour.steps.length} steps
+                    {isDone && ' · completed'}
+                    {needsRoute && ` · start from ${tour.routes[0]}`}
+                  </p>
+                </div>
+                {needsRoute ? (
+                  <button
+                    onClick={() => router.push(tour.routes[0])}
+                    className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-muted transition hover:border-accent hover:text-accent"
+                  >
+                    Go to page
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => startTour(key)}
+                    className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-muted transition hover:border-accent hover:text-accent"
+                  >
+                    {isDone ? 'Replay' : 'Start'}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-text">Demo workspace</p>
+            <p className="mt-0.5 text-xs text-text-muted">
+              Replaces your dashboard and library with sample research. Your
+              own data is never modified.
+            </p>
+          </div>
+          <button
+            onClick={isDemoMode ? disableDemoMode : enableDemoMode}
+            className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+              isDemoMode
+                ? 'border border-signature/40 text-signature hover:bg-signature/15'
+                : 'border border-border text-text-muted hover:border-accent hover:text-accent'
+            }`}
+          >
+            {isDemoMode ? 'Exit demo' : 'Enter demo'}
+          </button>
+        </div>
+
+        <button
+          onClick={() => {
+            resetOnboarding()
+            setOnboardingReset(true)
+          }}
+          className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-left text-sm text-text-muted transition hover:bg-surface-hover hover:text-text"
+        >
+          Reset onboarding progress
+        </button>
+        {onboardingReset && (
+          <p className="text-sm text-signature">
+            Onboarding reset — the welcome screen will show on your next page
+            load.
+          </p>
+        )}
       </section>
 
       {/* Danger zone */}

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
+import { useDemoMode } from '@/context/demo-mode-context'
+import { demoAnalyticsSummary, demoSessionList } from '@/lib/demo-data'
 
 interface AnalyticsSummary {
   total_sessions: number
@@ -55,13 +57,22 @@ function groupSessionsByDay(sessions: SessionListItem[]) {
 export default function DashboardPage() {
   const router = useRouter()
   const supabase = createClient()
+  const { isDemoMode, hydrated: demoHydrated } = useDemoMode()
 
-  const [summary, setSummary] = useState<AnalyticsSummary | null>(null)
-  const [sessions, setSessions] = useState<SessionListItem[]>([])
+  const [fetchedSummary, setSummary] = useState<AnalyticsSummary | null>(null)
+  const [fetchedSessions, setSessions] = useState<SessionListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Demo mode is read from localStorage, so wait for it to resolve before
+    // deciding whether to hit the API — otherwise the first pass always
+    // fetches real data and demo users see a flash of their own dashboard.
+    if (!demoHydrated) return
+    // Demo data is derived below rather than pushed into state, so there's
+    // nothing to do here beyond skipping the fetch.
+    if (isDemoMode) return
+
     const load = async () => {
       const {
         data: { session },
@@ -84,7 +95,8 @@ export default function DashboardPage() {
         if (!sessionsRes.ok) throw new Error('Failed to load sessions')
 
         const summaryData: AnalyticsSummary = await summaryRes.json()
-        const sessionsData: { sessions: SessionListItem[] } = await sessionsRes.json()
+        const sessionsData: { sessions: SessionListItem[] } =
+          await sessionsRes.json()
 
         setSummary(summaryData)
         setSessions(sessionsData.sessions)
@@ -96,9 +108,17 @@ export default function DashboardPage() {
     }
 
     load()
-  }, [])
+  }, [isDemoMode, demoHydrated])
 
-  if (loading) {
+  // Demo mode swaps the whole data source. Deriving it keeps a single render
+  // pass and leaves the user's real fetched data untouched underneath, so
+  // exiting demo mode is instant.
+  const summary = isDemoMode ? demoAnalyticsSummary : fetchedSummary
+  const sessions = isDemoMode ? demoSessionList : fetchedSessions
+  const showLoading = isDemoMode ? false : loading
+  const showError = isDemoMode ? null : error
+
+  if (showLoading) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-10">
         <p className="text-sm text-[var(--color-text-muted)]">Loading dashboard...</p>
@@ -106,10 +126,10 @@ export default function DashboardPage() {
     )
   }
 
-  if (error) {
+  if (showError) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-10">
-        <p className="text-sm text-[var(--color-error)]">{error}</p>
+        <p className="text-sm text-[var(--color-error)]">{showError}</p>
       </div>
     )
   }
@@ -128,7 +148,7 @@ export default function DashboardPage() {
       <h1 className="text-2xl font-semibold text-[var(--color-text)]">Dashboard</h1>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div id="tour-dashboard-stats" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Total Research Sessions" value={summary.total_sessions} accent="accent" />
         <StatCard label="Avg. Iterations" value={summary.avg_iterations.toFixed(1)} accent="signature" />
         <StatCard label="Avg. Research Time" value={formatDuration(summary.avg_duration_seconds)} accent="signature" />
@@ -136,7 +156,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Chart 1: Source type breakdown */}
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+      <div id="tour-dashboard-sources" className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <h2 className="mb-4 text-lg font-semibold text-[var(--color-text)]">Source Type Breakdown</h2>
         {summary.total_web_sources + summary.total_rag_sources === 0 ? (
           <p className="text-sm text-[var(--color-text-muted)]">No sources yet.</p>
