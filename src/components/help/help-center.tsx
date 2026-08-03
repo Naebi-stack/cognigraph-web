@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import {
   BookOpen,
   Bug,
@@ -20,6 +21,8 @@ import { useTour } from '@/context/tour-context'
 import { useDemoMode } from '@/context/demo-mode-context'
 import { TOURS, tourForRoute } from '@/components/tour/tours'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
 interface MenuItem {
   label: string
   hint?: string
@@ -33,11 +36,37 @@ interface MenuItem {
 
 export default function HelpCenter() {
   const pathname = usePathname()
+  const router = useRouter()
+  const supabase = createClient()
   const [open, setOpen] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
 
   const { startTour, continueTour, resumable, completed, hydrated } = useTour()
   const { isDemoMode, enableDemoMode, disableDemoMode } = useDemoMode()
+
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+
+  // Contact Support / Report an Issue — one modal, two modes. Replaces what
+  // used to be plain mailto: links here, and is the single implementation
+  // of this feature (previously duplicated in the sidebar profile menu,
+  // which only had mailto: links too — removed from there in favor of this
+  // one real, Supabase-backed version).
+  const [supportType, setSupportType] = useState<'contact' | 'issue' | null>(null)
+  const [supportSubject, setSupportSubject] = useState('')
+  const [supportMessage, setSupportMessage] = useState('')
+  const [supportSubmitting, setSupportSubmitting] = useState(false)
+  const [supportError, setSupportError] = useState<string | null>(null)
+  const [supportSuccess, setSupportSuccess] = useState(false)
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      setUserEmail(user?.email ?? null)
+    }
+    loadUser()
+  }, [])
 
   // Same outside-click pattern as the sidebar profile menu.
   useEffect(() => {
@@ -62,6 +91,63 @@ export default function HelpCenter() {
   const run = (fn: () => void) => () => {
     setOpen(false)
     fn()
+  }
+
+  const openSupportModal = (type: 'contact' | 'issue') => {
+    setOpen(false)
+    setSupportType(type)
+    setSupportSubject('')
+    setSupportMessage('')
+    setSupportError(null)
+    setSupportSuccess(false)
+  }
+
+  const handleSubmitSupport = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSupportError(null)
+
+    if (!supportMessage.trim()) {
+      setSupportError('Please describe your request before submitting.')
+      return
+    }
+
+    setSupportSubmitting(true)
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session) {
+      router.push('/login')
+      return
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/support`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          request_type: supportType,
+          subject: supportSubject || null,
+          message: supportMessage,
+          page_url: typeof window !== 'undefined' ? window.location.href : null,
+        }),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.detail || 'Failed to submit. Please try again.')
+      }
+
+      setSupportSuccess(true)
+    } catch (err) {
+      setSupportError(err instanceof Error ? err.message : 'Something went wrong.')
+    } finally {
+      setSupportSubmitting(false)
+    }
   }
 
   const pageTour = tourForRoute(pathname)
@@ -116,12 +202,12 @@ export default function HelpCenter() {
     {
       label: 'Contact support',
       icon: Mail,
-      href: 'mailto:support@cognigraph.app',
+      onSelect: () => openSupportModal('contact'),
     },
     {
       label: 'Report an issue',
       icon: Bug,
-      href: 'mailto:support@cognigraph.app?subject=Issue%20report',
+      onSelect: () => openSupportModal('issue'),
     },
   )
 
@@ -232,6 +318,105 @@ export default function HelpCenter() {
       >
         {open ? <X className="h-5 w-5" /> : <HelpCircle className="h-5 w-5" />}
       </button>
+
+      {/* Contact Support / Report an Issue modal */}
+      {supportType && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-xl border border-border bg-surface p-5">
+            {supportSuccess ? (
+              <>
+                <h2 className="text-base font-semibold text-text">
+                  {supportType === 'contact' ? 'Message sent' : 'Issue reported'}
+                </h2>
+                <p className="mt-2 text-sm text-text-muted">
+                  Thanks — we&apos;ve received it and will follow up at{' '}
+                  {userEmail} if needed.
+                </p>
+                <div className="mt-5 flex justify-end">
+                  <button
+                    onClick={() => setSupportType(null)}
+                    className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-hover"
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-base font-semibold text-text">
+                  {supportType === 'contact' ? 'Contact Support' : 'Report an Issue'}
+                </h2>
+                <p className="mt-1 text-sm text-text-muted">
+                  {supportType === 'contact'
+                    ? "Questions, feedback, or requests — we'll get back to you at " + (userEmail || 'your account email') + '.'
+                    : 'Tell us what went wrong. The page you\'re currently on is included automatically.'}
+                </p>
+
+                <form onSubmit={handleSubmitSupport} className="mt-4 space-y-3">
+                  {supportType === 'contact' && (
+                    <div className="space-y-1">
+                      <label htmlFor="support-subject" className="text-xs text-text-muted">
+                        Subject (optional)
+                      </label>
+                      <input
+                        id="support-subject"
+                        type="text"
+                        value={supportSubject}
+                        onChange={(e) => setSupportSubject(e.target.value)}
+                        className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+                        placeholder="What's this about?"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <label htmlFor="support-message" className="text-xs text-text-muted">
+                      {supportType === 'contact' ? 'Message' : 'What happened?'}
+                    </label>
+                    <textarea
+                      id="support-message"
+                      required
+                      rows={5}
+                      value={supportMessage}
+                      onChange={(e) => setSupportMessage(e.target.value)}
+                      className="w-full resize-none rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+                      placeholder={
+                        supportType === 'contact'
+                          ? 'How can we help?'
+                          : 'What were you doing, and what went wrong?'
+                      }
+                    />
+                  </div>
+
+                  {supportError && (
+                    <p className="text-sm text-error" role="alert">
+                      {supportError}
+                    </p>
+                  )}
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setSupportType(null)}
+                      disabled={supportSubmitting}
+                      className="rounded-lg border border-border px-4 py-2 text-sm text-text-muted transition hover:text-text disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={supportSubmitting}
+                      className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                    >
+                      {supportSubmitting ? 'Sending...' : 'Send'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
