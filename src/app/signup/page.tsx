@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 // Pinned so the OAuth redirect always lands on the same host that set the
@@ -36,10 +37,9 @@ export default function SignupPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -50,32 +50,11 @@ export default function SignupPage() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-
-    const trimmedFirst = firstName.trim()
-    const trimmedLast = lastName.trim()
-
-    if (!trimmedFirst || !trimmedLast) {
-      setError('Please enter your first and last name.')
-      return
-    }
-
     setLoading(true)
 
-    // Stored in user_metadata under the same keys Google OAuth already
-    // populates (full_name, avatar_url) — see layout.tsx's getInitials()/
-    // displayName logic, which reads user_metadata.full_name regardless
-    // of signup method. first_name/last_name are kept alongside in case
-    // they're needed separately later (e.g. formal report headers).
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: {
-          first_name: trimmedFirst,
-          last_name: trimmedLast,
-          full_name: `${trimmedFirst} ${trimmedLast}`,
-        },
-      },
     })
 
     setLoading(false)
@@ -89,8 +68,7 @@ export default function SignupPage() {
     // null here and we show the "check your email" screen below. If OFF,
     // signUp returns an active session immediately and we go straight in.
     if (data.session) {
-      router.push('/research')
-      router.refresh()
+      window.location.href = '/dashboard'
     } else {
       setVerificationSent(true)
     }
@@ -118,13 +96,9 @@ export default function SignupPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bg px-4">
         <div className="w-full max-w-sm space-y-5 text-center">
-          <div className="flex items-center justify-center gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-mark.svg" alt="" className="h-5 w-5" />
-            <p className="text-sm font-semibold tracking-tight text-text">
-              Cogni<span className="text-accent">Graph</span>
-            </p>
-          </div>
+          <p className="text-sm font-semibold tracking-tight text-text">
+            Cogni<span className="text-accent">Graph</span>
+          </p>
           <div className="rounded-xl border border-border border-l-2 border-l-signature bg-surface p-6">
             <p className="text-2xl" aria-hidden="true">
               ✉️
@@ -158,13 +132,9 @@ export default function SignupPage() {
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm space-y-6">
         <div>
-          <div className="flex items-center gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-mark.svg" alt="" className="h-5 w-5" />
-            <p className="text-sm font-semibold tracking-tight text-text">
-              Cogni<span className="text-accent">Graph</span>
-            </p>
-          </div>
+          <p className="text-sm font-semibold tracking-tight text-text">
+            Cogni<span className="text-accent">Graph</span>
+          </p>
           <h1 className="mt-4 text-2xl font-semibold text-text">Sign up</h1>
           <p className="text-sm text-text-muted">
             Create your CogniGraph account
@@ -200,38 +170,6 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSignup} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label htmlFor="first-name" className="text-sm font-medium text-text">
-                First name
-              </label>
-              <input
-                id="first-name"
-                type="text"
-                required
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
-                placeholder="Ada"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor="last-name" className="text-sm font-medium text-text">
-                Last name
-              </label>
-              <input
-                id="last-name"
-                type="text"
-                required
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
-                placeholder="Lovelace"
-              />
-            </div>
-          </div>
-
           <div className="space-y-1">
             <label htmlFor="email" className="text-sm font-medium text-text">
               Email
@@ -251,16 +189,26 @@ export default function SignupPage() {
             <label htmlFor="password" className="text-sm font-medium text-text">
               Password
             </label>
-            <input
-              id="password"
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
-              placeholder="At least 6 characters"
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 pr-10 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+                placeholder="At least 6 characters"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted transition hover:text-text"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           {error && (

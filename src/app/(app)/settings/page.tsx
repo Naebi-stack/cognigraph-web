@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useLibraryStyle, CitationStyle } from '@/context/library-style'
 
@@ -36,6 +37,7 @@ export default function SettingsPage() {
 
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
@@ -274,28 +276,48 @@ export default function SettingsPage() {
             <label htmlFor="new-password" className="text-xs text-text-muted">
               New password
             </label>
-            <input
-              id="new-password"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
-              placeholder="At least 6 characters"
-            />
+            <div className="relative">
+              <input
+                id="new-password"
+                type={showPassword ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full rounded-lg border border-border bg-bg px-3 py-2 pr-10 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+                placeholder="At least 6 characters"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted transition hover:text-text"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1">
             <label htmlFor="confirm-password" className="text-xs text-text-muted">
               Confirm new password
             </label>
-            <input
-              id="confirm-password"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
-              placeholder="Repeat password"
-            />
+            <div className="relative">
+              <input
+                id="confirm-password"
+                type={showPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full rounded-lg border border-border bg-bg px-3 py-2 pr-10 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+                placeholder="Repeat password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted transition hover:text-text"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           {passwordError && (
