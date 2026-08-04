@@ -37,6 +37,8 @@ export default function SignupPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -50,11 +52,32 @@ export default function SignupPage() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    const trimmedFirst = firstName.trim()
+    const trimmedLast = lastName.trim()
+
+    if (!trimmedFirst || !trimmedLast) {
+      setError('Please enter your first and last name.')
+      return
+    }
+
     setLoading(true)
 
+    // Stored in user_metadata under the same keys Google OAuth already
+    // populates (full_name, avatar_url) — see layout.tsx's getInitials()/
+    // displayName logic, which reads user_metadata.full_name regardless
+    // of signup method. first_name/last_name are kept alongside in case
+    // they're needed separately later (e.g. formal report headers).
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          first_name: trimmedFirst,
+          last_name: trimmedLast,
+          full_name: `${trimmedFirst} ${trimmedLast}`,
+        },
+      },
     })
 
     setLoading(false)
@@ -68,7 +91,8 @@ export default function SignupPage() {
     // null here and we show the "check your email" screen below. If OFF,
     // signUp returns an active session immediately and we go straight in.
     if (data.session) {
-      window.location.href = '/dashboard'
+      router.push('/research')
+      router.refresh()
     } else {
       setVerificationSent(true)
     }
@@ -96,9 +120,13 @@ export default function SignupPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bg px-4">
         <div className="w-full max-w-sm space-y-5 text-center">
-          <p className="text-sm font-semibold tracking-tight text-text">
-            Cogni<span className="text-accent">Graph</span>
-          </p>
+          <div className="flex items-center justify-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-mark.svg" alt="" className="h-5 w-5" />
+            <p className="text-sm font-semibold tracking-tight text-text">
+              Cogni<span className="text-accent">Graph</span>
+            </p>
+          </div>
           <div className="rounded-xl border border-border border-l-2 border-l-signature bg-surface p-6">
             <p className="text-2xl" aria-hidden="true">
               ✉️
@@ -132,9 +160,13 @@ export default function SignupPage() {
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm space-y-6">
         <div>
-          <p className="text-sm font-semibold tracking-tight text-text">
-            Cogni<span className="text-accent">Graph</span>
-          </p>
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-mark.svg" alt="" className="h-5 w-5" />
+            <p className="text-sm font-semibold tracking-tight text-text">
+              Cogni<span className="text-accent">Graph</span>
+            </p>
+          </div>
           <h1 className="mt-4 text-2xl font-semibold text-text">Sign up</h1>
           <p className="text-sm text-text-muted">
             Create your CogniGraph account
@@ -170,6 +202,38 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSignup} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label htmlFor="first-name" className="text-sm font-medium text-text">
+                First name
+              </label>
+              <input
+                id="first-name"
+                type="text"
+                required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+                placeholder="Ada"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="last-name" className="text-sm font-medium text-text">
+                Last name
+              </label>
+              <input
+                id="last-name"
+                type="text"
+                required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+                placeholder="Lovelace"
+              />
+            </div>
+          </div>
+
           <div className="space-y-1">
             <label htmlFor="email" className="text-sm font-medium text-text">
               Email
